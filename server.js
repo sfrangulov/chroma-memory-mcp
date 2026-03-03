@@ -318,6 +318,12 @@ async function main() {
   const app = createMcpExpressApp({ host: CONFIG.host });
   app.set("trust proxy", 1); // Behind nginx ingress
   app.use(helmet());
+
+  // Health check — before rate limiter so k8s probes are never throttled
+  app.get("/health", (_req, res) => {
+    res.json({ status: "ok" });
+  });
+
   app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
   // Auth setup — optional, requires MCP_BASE_URL, GOOGLE_CLIENT_ID, and GOOGLE_CLIENT_SECRET
@@ -444,11 +450,6 @@ async function main() {
         res.status(500).send("Error processing session termination");
       }
     }
-  });
-
-  // GET /health — health check
-  app.get("/health", (_req, res) => {
-    res.json({ status: "ok" });
   });
 
   // Start listening
