@@ -20,6 +20,11 @@ spec:
         - name: mcp-server
           image: "{{ .Values.mcp.image.repository }}:{{ .Values.mcp.image.tag }}"
           imagePullPolicy: {{ .Values.mcp.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: http
               containerPort: {{ .Values.mcp.port }}
@@ -50,6 +55,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "chroma-memory-mcp.fullname" . }}-secrets
                   key: GOOGLE_CLIENT_SECRET
+            {{- if .Values.redis.enabled }}
+            - name: REDIS_URL
+              value: "redis://{{ include "chroma-memory-mcp.fullname" . }}-redis:{{ .Values.redis.port }}"
+            {{- end }}
           resources:
             {{- toYaml .Values.mcp.resources | nindent 12 }}
           livenessProbe:

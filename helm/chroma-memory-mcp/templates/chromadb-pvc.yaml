@@ -9,7 +9,9 @@ metadata:
 spec:
   accessModes:
     - {{ .Values.chromadb.persistence.accessMode }}
+  {{- if .Values.chromadb.persistence.storageClass }}
   storageClassName: {{ .Values.chromadb.persistence.storageClass }}
+  {{- end }}
   resources:
     requests:
       storage: {{ .Values.chromadb.persistence.size }}

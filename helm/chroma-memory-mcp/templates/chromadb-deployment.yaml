@@ -22,6 +22,10 @@ spec:
         - name: chromadb
           image: "{{ .Values.chromadb.image.repository }}:{{ .Values.chromadb.image.tag }}"
           imagePullPolicy: {{ .Values.chromadb.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: http
               containerPort: {{ .Values.chromadb.port }}
