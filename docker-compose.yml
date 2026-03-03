@@ -1,8 +1,18 @@
 services:
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+
   chromadb:
     image: chromadb/chroma:1.5.2
     volumes:
       - chroma-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   mcp-server:
     build: .
@@ -10,12 +20,19 @@ services:
       - "3000:3000"
     environment:
       - CHROMA_URL=http://chromadb:8000
+      - REDIS_URL=redis://redis:6379
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - MCP_BASE_URL=${MCP_BASE_URL}
       - MCP_PORT=3000
     depends_on:
-      - chromadb
+      chromadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
     restart: on-failure
 
 volumes:
   chroma-data:
+  redis-data:

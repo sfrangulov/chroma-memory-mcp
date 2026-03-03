@@ -1,7 +1,12 @@
 node_modules
 test
-docker-compose.test.yml
-.env
-chroma-data
+docs
+helm
 .git
+.env
+.gitignore
 .npmignore
+Dockerfile
+docker-compose*.yml
+*.md
+chroma-data
