@@ -1,6 +1,6 @@
 {
   "name": "@sfrangulov/chroma-memory-mcp",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "MCP server for shared team memory with semantic search, backed by ChromaDB",
   "type": "module",
   "license": "MIT",

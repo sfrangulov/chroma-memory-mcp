@@ -33,6 +33,7 @@ spec:
             {{- toYaml .Values.redis.resources | nindent 12 }}
           securityContext:
             runAsNonRoot: true
+            runAsUser: 999
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]

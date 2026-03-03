@@ -3,7 +3,7 @@ namespace: chroma-memory
 mcp:
   image:
     repository: sfrangulov/chroma-memory-mcp
-    tag: "0.1.0"
+    tag: "0.3.0"
     pullPolicy: IfNotPresent
   # NOTE: replicas must be 1 unless Redis is configured for session storage
   replicas: 1
