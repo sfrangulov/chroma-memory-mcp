@@ -125,7 +125,14 @@ describe("createMemoryStore", () => {
         distances: [[0.15]],
       });
 
-      const results = await store.search({
+      // Create a store with an embedding function to bypass the guard
+      const embeddingStore = await createMemoryStore({
+        client: mockClient,
+        embeddingFunction: {},
+        collectionName: "test",
+      });
+
+      const results = await embeddingStore.search({
         query: "database performance",
         project: "backend",
         nResults: 5,
@@ -149,11 +156,46 @@ describe("createMemoryStore", () => {
         ids: [[]], documents: [[]], metadatas: [[]], distances: [[]],
       });
 
-      await store.search({ query: "test", nResults: 10 });
+      // Create a store with an embedding function to bypass the guard
+      const embeddingStore = await createMemoryStore({
+        client: mockClient,
+        embeddingFunction: {},
+        collectionName: "test",
+      });
+
+      await embeddingStore.search({ query: "test", nResults: 10 });
 
       expect(collection.query).toHaveBeenCalledWith({
         queryTexts: ["test"],
         nResults: 10,
+        include: ["documents", "metadatas", "distances"],
+      });
+    });
+
+    it("throws when no embedding function is configured", async () => {
+      await expect(
+        store.search({ query: "test", nResults: 5 })
+      ).rejects.toThrow("Semantic search requires GOOGLE_API_KEY");
+    });
+
+    it("applies combined project + author filter", async () => {
+      const collection = mockClient._collection;
+      collection.query.mockResolvedValue({
+        ids: [[]], documents: [[]], metadatas: [[]], distances: [[]],
+      });
+
+      const embeddingStore = await createMemoryStore({
+        client: mockClient,
+        embeddingFunction: {},
+        collectionName: "test",
+      });
+
+      await embeddingStore.search({ query: "test", project: "backend", author: "a@b.com" });
+
+      expect(collection.query).toHaveBeenCalledWith({
+        queryTexts: ["test"],
+        nResults: 10,
+        where: { $and: [{ project: "backend" }, { author: "a@b.com" }] },
         include: ["documents", "metadatas", "distances"],
       });
     });
@@ -263,6 +305,23 @@ describe("createMemoryStore", () => {
         include: ["metadatas"],
       });
     });
+
+    it("lists all entries without filters", async () => {
+      const collection = mockClient._collection;
+      collection.get.mockResolvedValue({
+        ids: ["a:1", "b:2"],
+        metadatas: [
+          { project: "a", title: "A", tags: "x" },
+          { project: "b", title: "B", tags: "y,z" },
+        ],
+      });
+
+      const results = await store.listEntries({});
+      expect(results).toHaveLength(2);
+      expect(collection.get).toHaveBeenCalledWith({
+        include: ["metadatas"],
+      });
+    });
   });
 
   describe("listProjects", () => {
@@ -278,6 +337,14 @@ describe("createMemoryStore", () => {
 
       const projects = await store.listProjects();
       expect(projects).toEqual(["backend", "frontend"]);
+    });
+
+    it("returns empty array for empty collection", async () => {
+      const collection = mockClient._collection;
+      collection.get.mockResolvedValue({ metadatas: [] });
+
+      const projects = await store.listProjects();
+      expect(projects).toEqual([]);
     });
   });
 });

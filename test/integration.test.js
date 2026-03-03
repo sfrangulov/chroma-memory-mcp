@@ -160,16 +160,16 @@ describe("Integration: Memory Store + ChromaDB", () => {
     await store.deleteEntry("dup", "same");
   });
 
-  it("count returns number of entries", async () => {
-    const before = await store.count();
+  it("tracks entry count via listEntries", async () => {
+    const before = await store.listEntries({});
 
     await store.writeEntry({
       project: "count-test", slug: "c1", title: "Count1",
       content: "c1", author: "a@b.com", tags: [], type: "note",
     });
 
-    const after = await store.count();
-    expect(after).toBe(before + 1);
+    const after = await store.listEntries({});
+    expect(after.length).toBe(before.length + 1);
 
     // Cleanup
     await store.deleteEntry("count-test", "c1");
