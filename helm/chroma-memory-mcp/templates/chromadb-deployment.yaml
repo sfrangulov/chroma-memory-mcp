@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chroma-memory-mcp.fullname" . }}-chromadb
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "chroma-memory-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chromadb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "chroma-memory-mcp.chromadb.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "chroma-memory-mcp.chromadb.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: chromadb
+          image: "{{ .Values.chromadb.image.repository }}:{{ .Values.chromadb.image.tag }}"
+          imagePullPolicy: {{ .Values.chromadb.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.chromadb.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.chromadb.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.chromadb.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.chromadb.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.chromadb.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.chromadb.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.chromadb.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.chromadb.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.chromadb.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.chromadb.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.chromadb.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.chromadb.probes.readiness.failureThreshold }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "chroma-memory-mcp.fullname" . }}-chromadb-data

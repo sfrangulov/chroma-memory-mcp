@@ -1,0 +1,52 @@
+{
+  "name": "@sfrangulov/chroma-memory-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for shared team memory with semantic search, backed by ChromaDB",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sfrangulov/chroma-memory-mcp"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "chromadb",
+    "semantic-search",
+    "team-memory",
+    "vector-database",
+    "model-context-protocol"
+  ],
+  "bin": {
+    "chroma-memory-mcp": "server.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "server.js",
+    "lib/",
+    "Dockerfile",
+    "docker-compose.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node server.js",
+    "test": "vitest run --exclude test/integration.test.js",
+    "test:watch": "vitest --exclude test/integration.test.js",
+    "test:integration": "vitest run test/integration.test.js",
+    "test:all": "vitest run"
+  },
+  "dependencies": {
+    "@chroma-core/google-gemini": "^0.1.8",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "chromadb": "^3.3.0",
+    "express": "^5.0.0",
+    "google-auth-library": "^9.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@chroma-core/default-embed": "^0.1.9",
+    "vitest": "^3.0.0"
+  }
+}

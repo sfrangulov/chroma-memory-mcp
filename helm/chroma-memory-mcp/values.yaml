@@ -1,0 +1,77 @@
+namespace: chroma-memory
+
+mcp:
+  image:
+    repository: sfrangulov/chroma-memory-mcp
+    tag: "0.1.2"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 3000
+  env:
+    MCP_HOST: "0.0.0.0"
+    CHROMA_COLLECTION: "memories"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  probes:
+    liveness:
+      path: /health
+      initialDelaySeconds: 25
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /health
+      initialDelaySeconds: 25
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+chromadb:
+  image:
+    repository: chromadb/chroma
+    tag: "1.5.2"
+    pullPolicy: IfNotPresent
+  port: 8000
+  persistence:
+    size: 5Gi
+    storageClass: microk8s-hostpath
+    accessMode: ReadWriteOnce
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  probes:
+    liveness:
+      path: /api/v2/heartbeat
+      initialDelaySeconds: 15
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /api/v2/heartbeat
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+secrets:
+  googleApiKey: ""
+  googleClientId: ""
+  googleClientSecret: ""
+
+ingress:
+  enabled: true
+  className: public
+  host: chroma-memory.frangulov.dev
+  tls:
+    enabled: true
+    clusterIssuer: lets-encrypt
+    secretName: chroma-memory-mcp-tls

@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chroma-memory-mcp.fullname" . }}-mcp
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "chroma-memory-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+spec:
+  replicas: {{ .Values.mcp.replicas }}
+  selector:
+    matchLabels:
+      {{- include "chroma-memory-mcp.mcp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "chroma-memory-mcp.mcp.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: mcp-server
+          image: "{{ .Values.mcp.image.repository }}:{{ .Values.mcp.image.tag }}"
+          imagePullPolicy: {{ .Values.mcp.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.mcp.port }}
+              protocol: TCP
+          env:
+            - name: MCP_PORT
+              value: {{ .Values.mcp.port | quote }}
+            - name: MCP_HOST
+              value: {{ .Values.mcp.env.MCP_HOST | quote }}
+            - name: CHROMA_URL
+              value: {{ include "chroma-memory-mcp.chromaUrl" . | quote }}
+            - name: CHROMA_COLLECTION
+              value: {{ .Values.mcp.env.CHROMA_COLLECTION | quote }}
+            - name: MCP_BASE_URL
+              value: {{ include "chroma-memory-mcp.baseUrl" . | quote }}
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chroma-memory-mcp.fullname" . }}-secrets
+                  key: GOOGLE_API_KEY
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chroma-memory-mcp.fullname" . }}-secrets
+                  key: GOOGLE_CLIENT_ID
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chroma-memory-mcp.fullname" . }}-secrets
+                  key: GOOGLE_CLIENT_SECRET
+          resources:
+            {{- toYaml .Values.mcp.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.mcp.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.mcp.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.mcp.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.mcp.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.mcp.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.mcp.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.mcp.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.mcp.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.mcp.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.mcp.probes.readiness.failureThreshold }}

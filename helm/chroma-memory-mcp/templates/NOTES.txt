@@ -1,0 +1,22 @@
+Chroma Memory MCP deployed to namespace {{ .Values.namespace }}.
+
+{{- if .Values.ingress.enabled }}
+
+MCP endpoint: {{ include "chroma-memory-mcp.baseUrl" . }}/mcp
+Health check: {{ include "chroma-memory-mcp.baseUrl" . }}/health
+
+{{- if .Values.ingress.tls.enabled }}
+TLS certificate will be provisioned by cert-manager ({{ .Values.ingress.tls.clusterIssuer }}).
+Check certificate status:
+  kubectl -n {{ .Values.namespace }} get certificate
+{{- end }}
+{{- end }}
+
+Verify pods are running:
+  kubectl -n {{ .Values.namespace }} get pods
+
+Check MCP server logs:
+  kubectl -n {{ .Values.namespace }} logs -l app.kubernetes.io/component=mcp-server
+
+Check ChromaDB logs:
+  kubectl -n {{ .Values.namespace }} logs -l app.kubernetes.io/component=chromadb

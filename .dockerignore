@@ -1,0 +1,7 @@
+node_modules
+test
+docker-compose.test.yml
+.env
+chroma-data
+.git
+.npmignore

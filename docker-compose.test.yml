@@ -1,0 +1,12 @@
+services:
+  chromadb-test:
+    image: chromadb/chroma:1.5.2
+    ports:
+      - "8100:8000"
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

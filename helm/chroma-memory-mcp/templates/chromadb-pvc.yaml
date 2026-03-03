@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "chroma-memory-mcp.fullname" . }}-chromadb-data
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "chroma-memory-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chromadb
+spec:
+  accessModes:
+    - {{ .Values.chromadb.persistence.accessMode }}
+  storageClassName: {{ .Values.chromadb.persistence.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.chromadb.persistence.size }}

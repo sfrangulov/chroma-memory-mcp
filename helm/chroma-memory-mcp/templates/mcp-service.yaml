@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "chroma-memory-mcp.fullname" . }}-mcp
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "chroma-memory-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "chroma-memory-mcp.mcp.selectorLabels" . | nindent 4 }}

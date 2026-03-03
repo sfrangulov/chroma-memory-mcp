@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "chroma-memory-mcp.fullname" . }}-chromadb
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "chroma-memory-mcp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chromadb
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.chromadb.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "chroma-memory-mcp.chromadb.selectorLabels" . | nindent 4 }}
