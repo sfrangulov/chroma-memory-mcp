@@ -134,6 +134,8 @@ When user starts a session or asks "what's in memory":
 
 ## Commands Quick Reference
 
+> Note: These are prompting patterns for Claude, not registered CLI commands.
+
 ```
 /memory <query>     — semantic search in shared memory
 /remember <text>    — save a new entry

@@ -93,6 +93,7 @@ Add to `claude_desktop_config.json`:
 | `MCP_BASE_URL`         | No*      | —                       | Public HTTPS URL (required for OAuth) |
 | `GOOGLE_CLIENT_ID`     | No*      | —                       | Google OAuth client ID                |
 | `GOOGLE_CLIENT_SECRET` | No*      | —                       | Google OAuth client secret            |
+| `REDIS_URL`            | No       | —                       | Redis URL for session storage (enables replicas > 1) |
 
 *OAuth is optional. Without it, the server runs in dev mode (no auth).
 Without `GOOGLE_API_KEY`, semantic search is disabled (CRUD still works).
@@ -106,7 +107,7 @@ export GOOGLE_API_KEY=your-gemini-api-key
 docker compose up -d
 ```
 
-This starts ChromaDB + MCP server. Data persists in a Docker volume `chroma-data`.
+This starts ChromaDB + Redis + MCP server. Data persists in Docker volumes.
 
 ### Production (Docker Compose + OAuth)
 
@@ -228,6 +229,23 @@ The server automatically exposes OAuth discovery endpoints:
 
 Without OAuth (dev mode), the server accepts all requests and sets author to `anonymous`.
 
+### OAuth Flow Details
+
+- Tokens are **opaque UUIDs** issued by this server (not Google JWTs)
+- Token TTL: **24 hours** — users re-authenticate daily
+- **Refresh tokens are not supported** — sessions expire after 24h
+- Google ID tokens are **cryptographically verified** via JWKS
+- Server restart **invalidates all sessions** (unless Redis is configured)
+
+## HTTP Endpoints
+
+| Endpoint      | Method   | Description                      |
+| ------------- | -------- | -------------------------------- |
+| `/mcp`        | `POST`   | Main MCP endpoint (tool calls)   |
+| `/mcp`        | `GET`    | SSE stream (server notifications)|
+| `/mcp`        | `DELETE` | Session cleanup                  |
+| `/health`     | `GET`    | Health check (`{ status: "ok" }`)|
+
 ## Usage Examples
 
 ### Save a decision
@@ -256,7 +274,10 @@ Claude calls `list_projects`, then `list_entries` for the relevant project.
 | `chromadb` v3                | Vector database client                 |
 | `@chroma-core/google-gemini` | Gemini embedding function              |
 | `express` v5                 | HTTP server                            |
-| `google-auth-library`        | OAuth2 authentication                  |
+| `jose`                       | Google JWT verification (JWKS)         |
+| `helmet`                     | Security headers                       |
+| `express-rate-limit`         | Rate limiting                          |
+| `ioredis`                    | Redis client (optional, for scaling)   |
 | `zod`                        | Input schema validation                |
 
 ## Project Structure
@@ -266,7 +287,8 @@ Claude calls `list_projects`, then `list_entries` for the relevant project.
 ├── lib/
 │   ├── memory-store.js       # ChromaDB wrapper (CRUD + search)
 │   ├── auth.js               # Email extraction from auth info
-│   └── oauth-provider.js     # Google OAuth2 provider
+│   ├── oauth-provider.js     # Google OAuth2 provider
+│   └── session-store.js      # TTL session store (Memory/Redis)
 ├── test/                     # Unit + integration tests (Vitest)
 ├── Dockerfile                # Production image (node:20-slim)
 ├── docker-compose.yml        # Local development
@@ -292,6 +314,8 @@ docker compose -f docker-compose.test.yml up -d --wait
 npm run test:integration
 docker compose -f docker-compose.test.yml down
 ```
+
+Set `TEST_CHROMA_URL` to override the default `http://localhost:8100` for integration tests.
 
 ## License
 
