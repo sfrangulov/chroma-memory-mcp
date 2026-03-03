@@ -10,6 +10,9 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
@@ -27,13 +30,13 @@ import { createOAuthProvider } from "./lib/oauth-provider.js";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function successResult(data) {
+export function successResult(data) {
   return {
     content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
   };
 }
 
-function errorResult(code, message) {
+export function errorResult(code, message) {
   return {
     isError: true,
     content: [{ type: "text", text: JSON.stringify({ error: code, message }) }],
@@ -62,11 +65,11 @@ export function createMcpServerFactory(store) {
     {
       description: "Create a new memory entry",
       inputSchema: {
-        project: z.string().describe("Project identifier"),
-        slug: z.string().describe("URL-safe short name"),
-        title: z.string().describe("Human-readable title"),
-        content: z.string().describe("Markdown content"),
-        tags: z.array(z.string()).default([]).describe("Categorisation tags"),
+        project: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/, "Project must be URL-safe").describe("Project identifier"),
+        slug: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/, "Slug must be URL-safe").describe("URL-safe short name"),
+        title: z.string().min(1).max(500).describe("Human-readable title"),
+        content: z.string().min(1).max(100000).describe("Markdown content"),
+        tags: z.array(z.string().max(50)).max(20).default([]).describe("Categorisation tags"),
         type: z
           .enum(["note", "decision", "snippet", "doc", "log"])
           .default("note")
@@ -93,8 +96,8 @@ export function createMcpServerFactory(store) {
     {
       description: "Read a memory entry by project and slug",
       inputSchema: {
-        project: z.string().describe("Project identifier"),
-        slug: z.string().describe("Entry slug"),
+        project: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/, "Project must be URL-safe").describe("Project identifier"),
+        slug: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/, "Slug must be URL-safe").describe("Entry slug"),
       },
       annotations: {
         readOnlyHint: true,
@@ -116,8 +119,8 @@ export function createMcpServerFactory(store) {
     {
       description: "Update an existing memory entry",
       inputSchema: {
-        project: z.string().describe("Project identifier"),
-        slug: z.string().describe("Entry slug"),
+        project: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/, "Project must be URL-safe").describe("Project identifier"),
+        slug: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/, "Slug must be URL-safe").describe("Entry slug"),
         content: z.string().optional().describe("New markdown content"),
         title: z.string().optional().describe("New title"),
         tags: z.array(z.string()).optional().describe("New tags"),
@@ -127,8 +130,17 @@ export function createMcpServerFactory(store) {
           .describe("New entry type"),
       },
     },
-    async ({ project, slug, ...changes }) => {
+    async ({ project, slug, ...changes }, extra) => {
       try {
+        // Ownership check
+        const entry = await store.readEntry(project, slug);
+        if (!entry) {
+          return errorResult("NOT_FOUND", `Entry "${project}:${slug}" not found`);
+        }
+        const userEmail = extractUserEmail(extra.authInfo);
+        if (userEmail && entry.metadata.author !== userEmail) {
+          return errorResult("FORBIDDEN", "You can only modify your own entries");
+        }
         const result = await store.updateEntry(project, slug, changes);
         return successResult(result);
       } catch (err) {
@@ -146,12 +158,20 @@ export function createMcpServerFactory(store) {
     {
       description: "Delete a memory entry",
       inputSchema: {
-        project: z.string().describe("Project identifier"),
-        slug: z.string().describe("Entry slug"),
+        project: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/, "Project must be URL-safe").describe("Project identifier"),
+        slug: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/, "Slug must be URL-safe").describe("Entry slug"),
       },
     },
-    async ({ project, slug }) => {
+    async ({ project, slug }, extra) => {
       try {
+        const entry = await store.readEntry(project, slug);
+        if (!entry) {
+          return errorResult("NOT_FOUND", `Entry "${project}:${slug}" not found`);
+        }
+        const userEmail = extractUserEmail(extra.authInfo);
+        if (userEmail && entry.metadata.author !== userEmail) {
+          return errorResult("FORBIDDEN", "You can only delete your own entries");
+        }
         const result = await store.deleteEntry(project, slug);
         return successResult(result);
       } catch (err) {
@@ -281,7 +301,6 @@ async function main() {
   if (CONFIG.googleApiKey) {
     embeddingFunction = new GoogleGeminiEmbeddingFunction({
       apiKey: CONFIG.googleApiKey,
-      apiKeyEnvVar: "GOOGLE_API_KEY",
       modelName: "gemini-embedding-001",
     });
   } else {
@@ -298,9 +317,19 @@ async function main() {
   // Express app
   const app = createMcpExpressApp({ host: CONFIG.host });
   app.set("trust proxy", 1); // Behind nginx ingress
+  app.use(helmet());
+  app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
   // Auth setup — optional, requires MCP_BASE_URL, GOOGLE_CLIENT_ID, and GOOGLE_CLIENT_SECRET
   const authEnabled = CONFIG.baseUrl && CONFIG.googleClientId && CONFIG.googleClientSecret;
+
+  if (process.env.NODE_ENV === "production" && !authEnabled) {
+    console.error(
+      "FATAL: Production mode requires MCP_BASE_URL, GOOGLE_CLIENT_ID, and GOOGLE_CLIENT_SECRET",
+    );
+    process.exit(1);
+  }
+
   let authMiddleware = (_req, _res, next) => next(); // no-op for dev mode
 
   if (authEnabled) {
@@ -316,10 +345,12 @@ async function main() {
         issuerUrl: new URL(CONFIG.baseUrl),
         baseUrl: new URL(CONFIG.baseUrl),
         serviceDocumentationUrl: new URL(
-          "https://github.com/anthropics/claude-shared-memory-plugin",
+          "https://github.com/sfrangulov/chroma-memory-mcp",
         ),
       }),
     );
+
+    app.use("/oauth", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }));
 
     // Google OAuth callback (proxied — not part of MCP spec)
     app.get("/oauth/google/callback", provider.handleGoogleCallback.bind(provider));
@@ -337,11 +368,6 @@ async function main() {
 
   // Transport sessions
   const transports = {};
-
-  // Helper: create a new MCP server + transport for a session
-  function createServerFactory() {
-    return createMcpServerFactory(store);
-  }
 
   // POST /mcp — main MCP endpoint
   app.post("/mcp", authMiddleware, async (req, res) => {
@@ -367,7 +393,7 @@ async function main() {
           }
         };
 
-        const { server } = createServerFactory();
+        const { server } = createMcpServerFactory(store);
         await server.connect(transport);
         await transport.handleRequest(req, res, req.body);
         return;
@@ -433,7 +459,7 @@ async function main() {
   });
 
   // Graceful shutdown
-  process.on("SIGINT", async () => {
+  const shutdown = async () => {
     console.log("Shutting down...");
     for (const sid of Object.keys(transports)) {
       try {
@@ -444,7 +470,9 @@ async function main() {
       }
     }
     process.exit(0);
-  });
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 // ---------------------------------------------------------------------------
@@ -453,7 +481,7 @@ async function main() {
 
 const isDirectRun =
   process.argv[1] &&
-  import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/"));
+  process.argv[1] === fileURLToPath(import.meta.url);
 
 if (isDirectRun) {
   main().catch((err) => {
