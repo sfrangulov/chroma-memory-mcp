@@ -197,6 +197,20 @@ Error: `spec is immutable after creation except resources.requests`
 
 This happens when `storageClass` doesn't match existing PVC. Always pass `--set chromadb.persistence.storageClass=microk8s-hostpath`.
 
+### Data protection
+
+ChromaDB PVC has `helm.sh/resource-policy: keep` annotation — Helm will not delete it even on `helm uninstall`. Additionally, the PV reclaim policy should be set to `Retain`:
+
+```bash
+# Check current reclaim policy
+kubectl get pv | grep chroma
+
+# Set to Retain (prevents data loss if PVC is deleted)
+kubectl patch pv <PV_NAME> -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+```
+
+**WARNING:** Never delete the `chroma-memory` namespace — this deletes ALL resources including PVC/PV and causes permanent data loss. If the namespace disappears, the PV data may still exist on disk at `/var/snap/microk8s/common/default-storage/` if reclaim policy was `Retain`.
+
 ### Namespace deleted
 
 If `chroma-memory` namespace disappears:
@@ -205,6 +219,8 @@ If `chroma-memory` namespace disappears:
 kubectl create namespace chroma-memory
 helm upgrade chroma-memory ./helm/chroma-memory-mcp --namespace default --reuse-values
 ```
+
+**Note:** This creates a new empty PVC. Previous data is lost unless PV had `Retain` policy.
 
 ### Gemini embedding warning in logs
 

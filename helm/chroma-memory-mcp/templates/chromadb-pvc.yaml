@@ -6,6 +6,8 @@ metadata:
   labels:
     {{- include "chroma-memory-mcp.labels" . | nindent 4 }}
     app.kubernetes.io/component: chromadb
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   accessModes:
     - {{ .Values.chromadb.persistence.accessMode }}
